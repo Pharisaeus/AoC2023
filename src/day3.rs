@@ -66,7 +66,6 @@ struct Identifier {
 
 fn parse(data: &str) -> Board {
     let pattern = Regex::new(r"\d+").unwrap();
-    let mut board = vec![];
     let mut identifiers = vec![];
     let mut symbols = vec![];
     for (row, line) in data.lines().enumerate() {
