@@ -1,41 +1,26 @@
 use std::fs;
 use itertools::Itertools;
 
-struct MappedRange {
-    source: u64,
-    destination: u64,
+struct NumberRange {
+    start: u64,
     length: u64,
 }
 
-impl MappedRange {
-    fn new(line: &str) -> Self {
-        let (destination, source, length) = line.split(" ")
-            .map(|x| x.parse().unwrap())
-            .collect_tuple()
-            .unwrap();
-        MappedRange {
-            source,
-            destination,
-            length,
-        }
+impl NumberRange {
+    fn is_in_range(&self, value: &u64) -> bool {
+        self.start <= *value && self.start + self.length > *value
     }
 
-    fn is_in_range(&self, src: &u64) -> bool {
-        self.source <= *src && self.source + self.length > *src
-    }
-
-    fn get_mapped_value(&self, src: &u64) -> Option<u64> {
-        return if self.is_in_range(src) {
-            let offset = src - self.source;
-            Some(self.destination + offset)
+    fn offset(&self, value: &u64) -> Option<u64> {
+        return if self.is_in_range(value) {
+            Some(value - self.start)
         } else {
             None
         };
     }
-
-    fn overlap_size(&self, src: &u64, length: &u64) -> u64 {
-        let min = (self.source + self.length).min(src + length);
-        let max = self.source.max(*src);
+    fn overlap_size(&self, other: &NumberRange) -> u64 {
+        let min = (self.start + self.length).min(other.start + other.length);
+        let max = self.start.max(other.start);
         return if min >= max {
             min - max + 1
         } else {
@@ -43,19 +28,55 @@ impl MappedRange {
         };
     }
 
-    fn get_mapped_range(&self, src: &u64, length: &u64) -> Option<MappedRange> {
-        let overlap = self.overlap_size(src, length);
-        return if overlap > 0 {
-            let start = self.source.max(*src);
-            Some(MappedRange { source: start, destination: self.get_mapped_value(&start).unwrap(), length: overlap })
+    fn overlap_range(&self, other: &NumberRange) -> Option<NumberRange> {
+        let length = self.overlap_size(other);
+        return if length > 0 {
+            let start = self.start.max(other.start);
+            Some(NumberRange { start, length })
         } else {
             None
         };
     }
 }
 
+struct MappingRange {
+    range: NumberRange,
+    destination_start: u64,
+}
+
+impl MappingRange {
+    fn new(line: &str) -> Self {
+        let (destination_start, start, length) = line.split(" ")
+            .map(|x| x.parse().unwrap())
+            .collect_tuple()
+            .unwrap();
+        MappingRange {
+            range: NumberRange { start, length },
+            destination_start,
+        }
+    }
+
+    fn map_value(&self, value: &u64) -> Option<u64> {
+        self.range.offset(value)
+            .map(|offset| self.destination_start + offset)
+    }
+
+    fn overlap_size(&self, other: &NumberRange) -> u64 {
+        self.range.overlap_size(other)
+    }
+
+    fn map_range(&self, other: &NumberRange) -> Option<MappingRange> {
+        self.range.overlap_range(other)
+            .map(|range|
+                MappingRange {
+                    destination_start: self.map_value(&range.start).unwrap(),
+                    range,
+                })
+    }
+}
+
 struct Mapping {
-    ranges: Vec<MappedRange>,
+    ranges: Vec<MappingRange>,
 }
 
 impl Mapping {
@@ -63,24 +84,24 @@ impl Mapping {
         Mapping {
             ranges: data.lines()
                 .skip(1)
-                .map(|line| MappedRange::new(line))
+                .map(|line| MappingRange::new(line))
                 .collect()
         }
     }
 
-    fn get_mapped_value(&self, src: &u64) -> u64 {
+    fn map_value(&self, value: &u64) -> u64 {
         self.ranges
             .iter()
-            .filter_map(|range| range.get_mapped_value(src))
+            .filter_map(|range| range.map_value(value))
             .find_or_first(|v| true)
-            .unwrap_or(*src)
+            .unwrap_or(*value)
     }
 
-    fn get_mapped_range(&self, src: &u64, length: &u64) -> Vec<MappedRange> {
+    fn map_range(&self, range_to_map: &NumberRange) -> Vec<MappingRange> {
         // FIXME: fill the holes of x->x?
         self.ranges
             .iter()
-            .filter_map(|range| range.get_mapped_range(src, length))
+            .filter_map(|range| range.map_range(range_to_map))
             .collect()
     }
 }
@@ -93,25 +114,27 @@ impl Mappings {
     fn find_seed_location(&self, seed: &u64) -> u64 {
         let mut x = *seed;
         for mapping in &self.mappings {
-            x = mapping.get_mapped_value(&x);
+            x = mapping.map_value(&x);
         }
         x
     }
 
-    fn find_seed_range_best_location(&self, seed: &u64, length: &u64) -> u64 {
-        let mut x = vec![MappedRange {
-            source: 0,
-            destination: *seed,
-            length: *length,
+    fn find_seed_range_best_location(&self, seed: &NumberRange) -> u64 {
+        let mut x = vec![MappingRange {
+            range: NumberRange {
+                start: 0,
+                length: seed.length,
+            },
+            destination_start: seed.start,
         }];
         for mapping in &self.mappings {
             x = x.iter()
-                .map(|r| mapping.get_mapped_range(&r.destination, &r.length))
+                .map(|r| mapping.map_range(&r.range))
                 .flatten()
                 .collect()
         }
         x.iter()
-            .map(|x| x.destination)
+            .map(|x| x.destination_start)
             .min()
             .unwrap_or(99999999999999)
     }
@@ -139,14 +162,14 @@ impl Planting {
         }
     }
 
-    fn get_locations(&self) -> Vec<u64> {
+    fn locations(&self) -> Vec<u64> {
         self.seeds
             .iter()
             .map(|seed| self.mappings.find_seed_location(seed))
             .collect()
     }
 
-    fn get_locations_range(&self, best_in_range: impl Fn(u64, u64) -> u64) -> Vec<u64> {
+    fn locations_range(&self, best_in_range: impl Fn(u64, u64) -> u64) -> Vec<u64> {
         self.seeds
             .chunks(2)
             .map(|c| c.iter().collect_tuple().unwrap())
@@ -154,21 +177,21 @@ impl Planting {
             .collect()
     }
 
-    fn best_in_range_slow(&self, s: u64, length: u64) -> u64 {
-        println!("Testing range {} (number of elements {}", s, length);
-        (s..s + length).map(|seed| self.mappings.find_seed_location(&seed))
+    fn best_in_range_slow(&self, seed: &NumberRange) -> u64 {
+        println!("Testing range {} (number of elements {})", seed.start, seed.length);
+        (seed.start..seed.start + seed.length).map(|seed| self.mappings.find_seed_location(&seed))
             .min()
             .unwrap()
     }
 
-    fn best_in_range_fast(&self, s: u64, length: u64) -> u64 {
-        self.mappings.find_seed_range_best_location(&s, &length)
+    fn best_in_range_fast(&self, seed: &NumberRange) -> u64 {
+        self.mappings.find_seed_range_best_location(seed)
     }
 }
 
 fn part2(planting: &Planting) -> u64 {
-    // planting.get_locations_range(|start, length| planting.best_in_range_slow(start, length))
-    planting.get_locations_range(|start, length| planting.best_in_range_fast(start, length))
+    // planting.locations_range(|start, length| planting.best_in_range_slow(&NumberRange { start, length }))
+    planting.locations_range(|start, length| planting.best_in_range_fast(&NumberRange { start, length }))
         .iter()
         .min()
         .unwrap()
@@ -176,7 +199,7 @@ fn part2(planting: &Planting) -> u64 {
 }
 
 fn part1(planting: &Planting) -> u64 {
-    planting.get_locations()
+    planting.locations()
         .iter()
         .min()
         .unwrap()
