@@ -8,7 +8,16 @@ struct Race {
 }
 
 impl Race {
-    fn winning_options(&self) -> u64 {
+    fn winning_options_fast(&self) -> u64 {
+        // solver parable time*x -x^2 > record
+        let time = self.time as f64;
+        let delta = (time * time - 4.0 * (self.record as f64 + 0.0000000001));
+        let x1 = ((time - delta.sqrt()) / 2.0).floor() as u64;
+        let x2 = ((time + delta.sqrt()) / 2.0).floor() as u64;
+        x2 - x1
+    }
+
+    fn winning_options_slow(&self) -> u64 {
         (0..self.time)
             .filter(|speed| self.breaks_record(speed))
             .count() as u64
@@ -39,14 +48,14 @@ fn parse(data: &str) -> Vec<Race> {
 fn part1(data: &str) -> u64 {
     let races = parse(data);
     races.iter()
-        .map(|r| r.winning_options())
+        .map(|r| r.winning_options_fast())
         .product()
 }
 
 fn part2(data: &str) -> u64 {
     let races = parse(data.replace(" ", "").as_str());
     races.iter()
-        .map(|r| r.winning_options())
+        .map(|r| r.winning_options_fast())
         .product()
 }
 
