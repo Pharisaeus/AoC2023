@@ -58,7 +58,7 @@ impl Sky {
             for (j, v2) in self.galaxies.iter().enumerate() {
                 if i < j {
                     let (steps_x, steps_y) = v1.steps(v2);
-                    let mut distance = steps_x.iter().count() as u64 + steps_y.iter().count() as u64;
+                    let mut distance = steps_x.len() as u64 + steps_y.len() as u64;
                     distance += self.expanding_x.intersection(&steps_x).count() as u64 * (expansion_rate - 1);
                     distance += self.expanding_y.intersection(&steps_y).count() as u64 * (expansion_rate - 1);
                     results.push(distance);
