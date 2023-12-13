@@ -54,12 +54,12 @@ impl Pattern {
         }
     }
 
-    fn find_split(&self, input: &Vec<Vec<Terrain>>, skip_index: i64) -> Option<usize> {
+    fn find_splits(&self, input: &Vec<Vec<Terrain>>) -> Vec<usize> {
         self.find_potential_split_starts(input)
             .iter()
-            .filter(|&&x| x as i64 != skip_index)
-            .find(|&&index| self.verify_split(input, index))
+            .filter(|&&index| self.verify_split(input, index))
             .map(|x| *x)
+            .collect()
     }
 
     fn find_potential_split_starts(&self, input: &Vec<Vec<Terrain>>) -> Vec<usize> {
@@ -78,32 +78,29 @@ impl Pattern {
             .all(|(a, b)| a.eq(b))
     }
 
-    fn reflection(&self) -> (Option<usize>, Option<usize>) {
-        self.reflection_skip(-1, -1)
+    fn reflections(&self) -> Vec<usize> {
+        let v: Vec<usize> = self.find_splits(&self.columns).iter().map(|x| x + 1).collect();
+        let h: Vec<usize> = self.find_splits(&self.rows).iter().map(|x| (x + 1) * 100).collect();
+        [v, h].concat()
     }
 
-    fn reflection_skip(&self, skip_v: i64, skip_h: i64) -> (Option<usize>, Option<usize>) {
-        let v = self.find_split(&self.columns, skip_v);
-        let h = self.find_split(&self.rows, skip_h);
-        (v, h)
-    }
-
-    fn smudges(&self) -> (Option<usize>, Option<usize>) {
-        let (v, h) = self.reflection();
-        let skip_v = v.map(|x| x as i64).unwrap_or(-1);
-        let skip_h = h.map(|x| x as i64).unwrap_or(-1);
+    fn smudges(&self) -> usize {
+        let original_reflection = *self.reflections().first().unwrap();
         for (row_index, row) in self.rows.iter().enumerate() {
             for (col_index, terrain) in row.iter().enumerate() {
                 let mut new_rows = self.rows.clone();
                 let mut new_cols = self.columns.clone();
                 new_rows[row_index][col_index] = terrain.opposite();
                 new_cols[col_index][row_index] = terrain.opposite();
-                let (nv, nh) = Pattern {
+                let smudge_reflections = Pattern {
                     rows: new_rows,
                     columns: new_cols,
-                }.reflection_skip(skip_v, skip_h);
-                if nv.is_some() || nh.is_some() {
-                    return (nv, nh);
+                }.reflections();
+                let new_reflection = smudge_reflections
+                    .iter()
+                    .find(|&&x| x != original_reflection);
+                if new_reflection.is_some() {
+                    return *new_reflection.unwrap();
                 }
             }
         }
@@ -115,15 +112,13 @@ fn part2(patterns: &Vec<Pattern>) -> usize {
     patterns
         .iter()
         .map(|p| p.smudges())
-        .map(|(v, h)| v.map(|x| x + 1).unwrap_or(0) + h.map(|x| x + 1).unwrap_or(0) * 100)
         .sum()
 }
 
 fn part1(patterns: &Vec<Pattern>) -> usize {
     patterns
         .iter()
-        .map(|p| p.reflection())
-        .map(|(v, h)| v.map(|x| x + 1).unwrap_or(0) + h.map(|x| x + 1).unwrap_or(0) * 100)
+        .map(|p| *p.reflections().first().unwrap())
         .sum()
 }
 
