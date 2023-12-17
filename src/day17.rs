@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::ops::Add;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 enum Direction {
@@ -10,12 +11,12 @@ enum Direction {
 }
 
 impl Direction {
-    fn delta(&self) -> (i64, i64) {
+    fn delta(&self) -> Position {
         match self {
-            Direction::Up => (0, 1),
-            Direction::Down => (0, -1),
-            Direction::Left => (-1, 0),
-            Direction::Right => (1, 0),
+            Direction::Up => Position { x: 0, y: 1 },
+            Direction::Down => Position { x: 0, y: -1 },
+            Direction::Left => Position { x: -1, y: 0 },
+            Direction::Right => Position { x: 1, y: 0 },
         }
     }
 
@@ -27,36 +28,74 @@ impl Direction {
     }
 }
 
-fn simple_directions(direction: Direction, steps_done: u64) -> Vec<(Direction, u64)> {
-    let (turn1, turn2) = direction.perpendicular();
-    if steps_done < 3 {
-        vec![(direction, steps_done + 1), (turn1, 1), (turn2, 1)]
-    } else {
-        vec![(turn1, 1), (turn2, 1)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+struct Position {
+    x: i64,
+    y: i64,
+}
+
+impl Add for Position {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
     }
 }
 
-fn ultra_directions(direction: Direction, steps_done: u64) -> Vec<(Direction, u64)> {
-    let (turn1, turn2) = direction.perpendicular();
-    if steps_done < 4 {
-        vec![(direction, steps_done + 1)]
-    } else if steps_done < 10 {
-        vec![(direction, steps_done + 1), (turn1, 1), (turn2, 1)]
+impl Add<&Direction> for Position {
+    type Output = Self;
+
+    fn add(self, rhs: &Direction) -> Self::Output {
+        self + rhs.delta()
+    }
+}
+
+fn simple_directions(state: &State) -> Vec<State> {
+    let (turn1, turn2) = state.last_direction.perpendicular();
+    if state.steps_done < 3 {
+        vec![state.step(&state.last_direction), state.step(&turn1), state.step(&turn2)]
     } else {
-        vec![(turn1, 1), (turn2, 1)]
+        vec![state.step(&turn1), state.step(&turn2)]
+    }
+}
+
+fn ultra_directions(state: &State) -> Vec<State> {
+    let (turn1, turn2) = state.last_direction.perpendicular();
+    if state.steps_done < 4 {
+        vec![state.step(&state.last_direction)]
+    } else if state.steps_done < 10 {
+        vec![state.step(&state.last_direction), state.step(&turn1), state.step(&turn2)]
+    } else {
+        vec![state.step(&turn1), state.step(&turn2)]
     }
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-struct Key {
-    x: i64,
-    y: i64,
+struct State {
+    position: Position,
     last_direction: Direction,
     steps_done: u64,
 }
 
+impl State {
+    fn step(&self, direction: &Direction) -> Self {
+        Self {
+            position: self.position + direction,
+            last_direction: *direction,
+            steps_done: if self.last_direction.eq(direction) {
+                self.steps_done + 1
+            } else {
+                1
+            },
+        }
+    }
+}
+
 struct Heatmap {
-    heatmap: HashMap<(i64, i64), u64>,
+    heatmap: HashMap<Position, u64>,
 }
 
 impl Heatmap {
@@ -65,52 +104,33 @@ impl Heatmap {
             heatmap: data.lines()
                 .enumerate()
                 .map(|(y, line)| line.chars().enumerate()
-                    .map(move |(x, c)| ((x as i64, y as i64), c.to_string().as_str().parse().unwrap())))
+                    .map(move |(x, c)| (Position { x: x as i64, y: y as i64 }, c.to_string().as_str().parse().unwrap())))
                 .flatten()
                 .collect()
         }
     }
 
-    fn height(&self) -> &i64 {
-        self.heatmap.keys().map(|(x, y)| y).max().unwrap()
+    fn height(&self) -> i64 {
+        self.heatmap.keys().map(|c| c.y).max().unwrap()
     }
-    fn width(&self) -> &i64 {
-        self.heatmap.keys().map(|(x, y)| x).max().unwrap()
+    fn width(&self) -> i64 {
+        self.heatmap.keys().map(|(c)| c.x).max().unwrap()
     }
 
-    fn find_heat_losses(&self, directions: impl Fn(Direction, u64) -> Vec<(Direction, u64)>) -> HashMap<Key, u64> {
+    fn find_heat_losses(&self, directions: impl Fn(&State) -> Vec<State>) -> HashMap<State, u64> {
         let mut visited = HashMap::new();
-        let k1 = Key {
-            x: 0,
-            y: 0,
-            last_direction: Direction::Right,
-            steps_done: 0,
-        };
-        let k2 = Key {
-            x: 0,
-            y: 0,
-            last_direction: Direction::Up,
-            steps_done: 0,
-        };
-        visited.insert(k1, 0);
-        visited.insert(k2, 0);
-        let mut to_check = vec![k1, k2];
+        let s1 = State { position: Position { x: 0, y: 0 }, last_direction: Direction::Right, steps_done: 0 };
+        let s2 = State { position: Position { x: 0, y: 0 }, last_direction: Direction::Up, steps_done: 0 };
+        visited.insert(s1, 0);
+        visited.insert(s2, 0);
+        let mut to_check = vec![s1, s2];
         while !to_check.is_empty() {
             let mut new_to_check = vec![];
-            for key in to_check {
-                let current_loss = *visited.get(&key).unwrap();
-                for (next_direction, next_steps_done) in directions(key.last_direction, key.steps_done) {
-                    let (dx, dy) = next_direction.delta();
-                    let nx = key.x + dx;
-                    let ny = key.y + dy;
-                    if self.heatmap.contains_key(&(nx, ny)) {
-                        let next_loss = current_loss + self.heatmap.get(&(nx, ny)).unwrap();
-                        let next_key = Key {
-                            x: nx,
-                            y: ny,
-                            last_direction: next_direction,
-                            steps_done: next_steps_done,
-                        };
+            for state in to_check {
+                let current_loss = *visited.get(&state).unwrap();
+                for next_key in directions(&state) {
+                    if self.heatmap.contains_key(&next_key.position) {
+                        let next_loss = current_loss + self.heatmap.get(&next_key.position).unwrap();
                         if !visited.contains_key(&next_key) || *visited.get(&next_key).unwrap() > next_loss {
                             visited.insert(next_key, next_loss);
                             new_to_check.push(next_key);
@@ -127,7 +147,7 @@ impl Heatmap {
 fn part2(heatmap: &Heatmap) -> u64 {
     *heatmap.find_heat_losses(ultra_directions)
         .iter()
-        .filter(|(k, v)| k.x == *heatmap.width() && k.y == *heatmap.height() && k.steps_done >= 4)
+        .filter(|(k, v)| k.position.x == heatmap.width() && k.position.y == heatmap.height() && k.steps_done >= 4)
         .map(|(k, v)| v)
         .min()
         .unwrap()
@@ -136,7 +156,7 @@ fn part2(heatmap: &Heatmap) -> u64 {
 fn part1(heatmap: &Heatmap) -> u64 {
     *heatmap.find_heat_losses(simple_directions)
         .iter()
-        .filter(|(k, v)| k.x == *heatmap.width() && k.y == *heatmap.height())
+        .filter(|(k, v)| k.position.x == heatmap.width() && k.position.y == heatmap.height())
         .map(|(k, v)| v)
         .min()
         .unwrap()
