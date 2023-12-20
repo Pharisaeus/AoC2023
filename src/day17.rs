@@ -114,7 +114,7 @@ impl Heatmap {
         self.heatmap.keys().map(|c| c.y).max().unwrap()
     }
     fn width(&self) -> i64 {
-        self.heatmap.keys().map(|(c)| c.x).max().unwrap()
+        self.heatmap.keys().map(|c| c.x).max().unwrap()
     }
 
     fn find_heat_losses(&self, directions: impl Fn(&State) -> Vec<State>) -> HashMap<State, u64> {
@@ -147,8 +147,8 @@ impl Heatmap {
 fn part2(heatmap: &Heatmap) -> u64 {
     *heatmap.find_heat_losses(ultra_directions)
         .iter()
-        .filter(|(k, v)| k.position.x == heatmap.width() && k.position.y == heatmap.height() && k.steps_done >= 4)
-        .map(|(k, v)| v)
+        .filter(|(k, _)| k.position.x == heatmap.width() && k.position.y == heatmap.height() && k.steps_done >= 4)
+        .map(|(_, v)| v)
         .min()
         .unwrap()
 }
@@ -156,8 +156,8 @@ fn part2(heatmap: &Heatmap) -> u64 {
 fn part1(heatmap: &Heatmap) -> u64 {
     *heatmap.find_heat_losses(simple_directions)
         .iter()
-        .filter(|(k, v)| k.position.x == heatmap.width() && k.position.y == heatmap.height())
-        .map(|(k, v)| v)
+        .filter(|(k, _)| k.position.x == heatmap.width() && k.position.y == heatmap.height())
+        .map(|(_, v)| v)
         .min()
         .unwrap()
 }

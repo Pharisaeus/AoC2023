@@ -34,7 +34,7 @@ impl CustomHashMapBox {
             .find_position(|x| x.label.eq(label));
         match position {
             None => None,
-            Some((pos, e)) => Some(self.entries.remove(pos))
+            Some((pos, _)) => Some(self.entries.remove(pos))
         }
     }
 
@@ -44,7 +44,7 @@ impl CustomHashMapBox {
             .find_position(|x| x.label.eq(entry.label.as_str()));
         match position {
             None => self.entries.push(entry),
-            Some((pos, e)) => self.entries[pos] = entry
+            Some((pos, _)) => self.entries[pos] = entry
         }
     }
 

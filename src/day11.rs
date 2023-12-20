@@ -1,6 +1,5 @@
 use std::collections::{HashSet};
 use std::fs;
-use itertools::Itertools;
 
 #[derive(Eq, PartialEq, Hash)]
 struct Position {

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::Read;
 use itertools::Itertools;
 use crate::day12::Spring::{BROKEN, OPERATIONAL, UNKNOWN};
 

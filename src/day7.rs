@@ -143,7 +143,6 @@ fn wildcard_hand_type(cards: &Vec<Card>) -> HandType {
 
 
 struct Hand {
-    cards: Vec<Card>,
     card_scores: Vec<u8>,
     bid: u64,
     hand_type: HandType,
@@ -162,7 +161,6 @@ impl Hand {
             .collect();
         let hand_type = hand_creator(&cards);
         Hand {
-            cards,
             card_scores,
             bid,
             hand_type,

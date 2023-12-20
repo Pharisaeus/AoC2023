@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::{fs, vec};
-use std::hash::Hash;
-use itertools::{Itertools};
+use itertools::Itertools;
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 enum PulseType {
@@ -16,7 +15,7 @@ struct Signal {
 }
 
 trait Module {
-    fn handle_signal(&mut self, signal: &Signal) -> Option<PulseType> { None }
+    fn handle_signal(&mut self, _: &Signal) -> Option<PulseType> { None }
 
     fn reset(&mut self) {}
 
@@ -160,8 +159,8 @@ impl GreatMachine {
 
     fn incoming_edges(name: &String, connections: &HashMap<String, Vec<String>>) -> Vec<String> {
         connections.iter()
-            .filter(|(k, v)| v.contains(name))
-            .map(|(k, v)| k.clone())
+            .filter(|(_, v)| v.contains(name))
+            .map(|(k, _)| k.clone())
             .collect()
     }
 
@@ -193,7 +192,7 @@ impl GreatMachine {
     }
 
     fn reset(&mut self) {
-        for mut m in self.modules.values_mut() {
+        for m in self.modules.values_mut() {
             m.reset();
         }
     }

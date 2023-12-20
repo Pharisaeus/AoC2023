@@ -66,7 +66,7 @@ impl Pattern {
         input.iter()
             .tuple_windows()
             .enumerate()
-            .filter(|(index, (a, b))| a.eq(b))
+            .filter(|(_, (a, b))| a.eq(b))
             .map(|(index, _)| index)
             .collect()
     }

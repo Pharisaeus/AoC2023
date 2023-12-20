@@ -61,10 +61,6 @@ impl MappingRange {
             .map(|offset| self.destination_start + offset)
     }
 
-    fn overlap_size(&self, other: &NumberRange) -> u64 {
-        self.range.overlap_size(other)
-    }
-
     fn map_range(&self, other: &NumberRange) -> Option<MappingRange> {
         self.range.overlap_range(other)
             .map(|range|
@@ -93,7 +89,7 @@ impl Mapping {
         self.ranges
             .iter()
             .filter_map(|range| range.map_value(value))
-            .find_or_first(|v| true)
+            .find_or_first(|_| true)
             .unwrap_or(*value)
     }
 

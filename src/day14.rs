@@ -81,7 +81,7 @@ struct Platform {
 impl Platform {
     fn new(data: &str) -> Self {
         let mut rocks = HashMap::new();
-        let mut height = data.lines().count();
+        let height = data.lines().count();
         let mut width = 0;
         for (y, line) in data.lines().enumerate() {
             width = line.len();

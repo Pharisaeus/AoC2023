@@ -39,7 +39,7 @@ struct Condition {
 
 impl Condition {
     fn new(comp: &str) -> Self {
-        let mut comparison = Comparison::Greater;
+        let comparison;
         let mut variable_name = "";
         let mut constant = "0";
         if comp.contains("<") {
@@ -146,12 +146,11 @@ impl Transition {
 }
 
 struct Step {
-    step_name: String,
     transitions: Vec<Transition>,
 }
 
 impl Step {
-    fn new(step_name: &str, conditions: &str) -> Self {
+    fn new(conditions: &str) -> Self {
         let condition_strings: Vec<String> = conditions.replace("}", "")
             .split(",")
             .map(|x| x.to_string())
@@ -163,7 +162,6 @@ impl Step {
         let fallback = condition_strings.last().unwrap().to_string();
         transitions.push(Transition { condition: Condition::true_condition(), target: fallback });
         Self {
-            step_name: step_name.to_string(),
             transitions,
         }
     }
@@ -187,7 +185,7 @@ impl Workflow {
         let mut steps = HashMap::new();
         for line in data.lines() {
             let (step_name, rest) = line.split("{").collect_tuple().unwrap();
-            steps.insert(step_name.to_string(), Step::new(step_name, rest));
+            steps.insert(step_name.to_string(), Step::new(rest));
         }
         Self {
             steps

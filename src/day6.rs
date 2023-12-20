@@ -11,7 +11,7 @@ impl Race {
     fn winning_options_fast(&self) -> u64 {
         // solver parable time*x -x^2 > record
         let time = self.time as f64;
-        let delta = (time * time - 4.0 * (self.record as f64 + 0.0000000001));
+        let delta = time * time - 4.0 * (self.record as f64 + 0.0000000001);
         let x1 = ((time - delta.sqrt()) / 2.0).floor() as u64;
         let x2 = ((time + delta.sqrt()) / 2.0).floor() as u64;
         x2 - x1
