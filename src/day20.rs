@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::{fs, vec};
 use std::hash::Hash;
-use itertools::Itertools;
+use itertools::{Itertools};
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 enum PulseType {
@@ -16,11 +16,15 @@ struct Signal {
 }
 
 trait Module {
-    fn handle_signal(&mut self, signal: &Signal) -> Option<PulseType> {
-        None
-    }
+    fn handle_signal(&mut self, signal: &Signal) -> Option<PulseType> { None }
 
     fn reset(&mut self) {}
+
+    fn triggered(&self) -> bool {
+        false
+    }
+
+    fn inputs(&self) -> Vec<String> { vec![] }
 }
 
 enum FlipFlopStatus {
@@ -57,7 +61,7 @@ impl Module for FlipFlop {
 struct Conjunction {
     inputs: Vec<String>,
     history: HashMap<String, PulseType>,
-    emitted_high: bool,
+    triggered: bool,
 }
 
 impl Module for Conjunction {
@@ -68,14 +72,22 @@ impl Module for Conjunction {
             .all(|&x| x == PulseType::High) {
             Some(PulseType::Low)
         } else {
-            self.emitted_high = true;
+            self.triggered = true;
             Some(PulseType::High)
         };
     }
 
     fn reset(&mut self) {
         self.history = HashMap::new();
-        self.emitted_high = false;
+        self.triggered = false;
+    }
+
+    fn triggered(&self) -> bool {
+        self.triggered
+    }
+
+    fn inputs(&self) -> Vec<String> {
+        self.inputs.clone()
     }
 }
 
@@ -88,7 +100,7 @@ impl Module for Broadcaster {
 }
 
 struct Output {
-    history: Vec<PulseType>,
+    inputs: Vec<String>,
 }
 
 impl Module for Output {}
@@ -101,7 +113,7 @@ struct OutgoingSignal {
 struct GreatMachine {
     modules: HashMap<String, Box<dyn Module>>,
     connections: HashMap<String, Vec<String>>,
-    output: Box<dyn Module>,
+    output: Output,
 }
 
 impl GreatMachine {
@@ -127,19 +139,27 @@ impl GreatMachine {
                 module = Box::new(FlipFlop { status: FlipFlopStatus::Off });
             } else if type_and_name.contains("&") {
                 name = type_and_name.replace("&", "");
-                let inputs = connections.iter()
-                    .filter(|(k, v)| v.contains(&name))
-                    .map(|(k, v)| k.clone())
-                    .collect();
-                module = Box::new(Conjunction { inputs, history: Default::default(), emitted_high: false });
+                module = Box::new(Conjunction {
+                    inputs: Self::incoming_edges(&name, &connections),
+                    history: Default::default(),
+                    triggered: false,
+                });
             }
             modules.insert(name.clone(), module);
         }
+        let output_inputs = Self::incoming_edges(&"rx".to_string(), &connections);
         Self {
             modules,
             connections,
-            output: Box::new(Output { history: vec![] }),
+            output: Output { inputs: output_inputs },
         }
+    }
+
+    fn incoming_edges(name: &String, connections: &HashMap<String, Vec<String>>) -> Vec<String> {
+        connections.iter()
+            .filter(|(k, v)| v.contains(name))
+            .map(|(k, v)| k.clone())
+            .collect()
     }
 
     fn press_button(&mut self) -> (i64, i64) {
@@ -149,28 +169,24 @@ impl GreatMachine {
         signals.push_back(OutgoingSignal { signal: Signal { pulse: PulseType::Low, source: "".to_string() }, destination: "broadcaster".to_string() });
         while !signals.is_empty() {
             let outgoing = signals.pop_front().unwrap();
-            let destination_module = self.modules.get_mut(&outgoing.destination).unwrap_or(&mut self.output);
-            let new_pulse = destination_module.handle_signal(&outgoing.signal);
-            if new_pulse.is_some() {
-                let pulse = new_pulse.unwrap();
-                for child in self.connections.get(&outgoing.destination).unwrap() {
-                    match pulse {
-                        PulseType::High => highs += 1,
-                        PulseType::Low => lows += 1,
+            if self.modules.contains_key(&outgoing.destination) {
+                let destination_module = self.modules.get_mut(&outgoing.destination).unwrap();
+                let new_pulse = destination_module.handle_signal(&outgoing.signal);
+                if new_pulse.is_some() {
+                    let pulse = new_pulse.unwrap();
+                    for child in self.connections.get(&outgoing.destination).unwrap() {
+                        match pulse {
+                            PulseType::High => highs += 1,
+                            PulseType::Low => lows += 1,
+                        }
+                        let signal_to_send = Signal { pulse: pulse.clone(), source: outgoing.destination.clone() };
+                        let signal_to_child = OutgoingSignal { signal: signal_to_send, destination: child.clone() };
+                        signals.push_back(signal_to_child)
                     }
-                    let signal_to_send = Signal { pulse: pulse.clone(), source: outgoing.destination.clone() };
-                    let signal_to_child = OutgoingSignal { signal: signal_to_send, destination: child.clone() };
-                    signals.push_back(signal_to_child)
                 }
             }
         }
         (lows, highs)
-    }
-
-    fn extract_conjunction(&self, name: &str) -> &Conjunction {
-        let y = self.modules.get(name).unwrap().as_ref();
-        // reinterpret cast goes brrr
-        unsafe { &*(y as *const dyn Module as *const Conjunction) }
     }
 
     fn reset(&mut self) {
@@ -187,8 +203,8 @@ fn count_cycle(node: &str, machine: &mut GreatMachine) -> i64 {
     loop {
         presses += 1;
         machine.press_button();
-        let conjunction = machine.extract_conjunction(node);
-        if conjunction.emitted_high {
+        let conjunction = machine.modules.get(node).unwrap();
+        if conjunction.triggered() {
             break;
         }
     }
@@ -210,8 +226,9 @@ fn gcd(a: i64, b: i64) -> i64 {
 }
 
 fn part2(machine: &mut GreatMachine) -> i64 {
-    let inputs = machine.extract_conjunction("vd").inputs.clone();
-    let cycles = inputs
+    let last_conjunction = machine.output.inputs.get(0).unwrap();
+    let cycle_outputs = machine.modules.get(last_conjunction).unwrap().inputs();
+    let cycles = cycle_outputs
         .iter()
         .map(|node| count_cycle(node, machine))
         .collect();
