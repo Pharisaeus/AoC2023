@@ -103,7 +103,11 @@ struct Output {
     inputs: Vec<String>,
 }
 
-impl Module for Output {}
+impl Module for Output {
+    fn inputs(&self) -> Vec<String> {
+        self.inputs.clone()
+    }
+}
 
 struct OutgoingSignal {
     signal: Signal,
@@ -113,7 +117,6 @@ struct OutgoingSignal {
 struct GreatMachine {
     modules: HashMap<String, Box<dyn Module>>,
     connections: HashMap<String, Vec<String>>,
-    output: Output,
 }
 
 impl GreatMachine {
@@ -148,10 +151,10 @@ impl GreatMachine {
             modules.insert(name.clone(), module);
         }
         let output_inputs = Self::incoming_edges(&"rx".to_string(), &connections);
+        modules.insert("rx".to_string(), Box::new(Output { inputs: output_inputs }));
         Self {
             modules,
             connections,
-            output: Output { inputs: output_inputs },
         }
     }
 
@@ -226,8 +229,10 @@ fn gcd(a: i64, b: i64) -> i64 {
 }
 
 fn part2(machine: &mut GreatMachine) -> i64 {
-    let last_conjunction = machine.output.inputs.get(0).unwrap();
-    let cycle_outputs = machine.modules.get(last_conjunction).unwrap().inputs();
+    let rx = machine.modules.get("rx").unwrap();
+    let output_inputs = rx.inputs();
+    let last_conjunction = output_inputs.get(0).unwrap().clone();
+    let cycle_outputs = machine.modules.get(&last_conjunction).unwrap().inputs();
     let cycles = cycle_outputs
         .iter()
         .map(|node| count_cycle(node, machine))
