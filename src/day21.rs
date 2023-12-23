@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::ops::Add;
-use std::sync::atomic::Ordering::SeqCst;
 use itertools::Itertools;
 use crate::day21::TileType::{Ground, Rock};
 
