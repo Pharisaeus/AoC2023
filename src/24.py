@@ -19,6 +19,7 @@ def main():
         s.add(pos[0] + vel[0] * t[i] == x + vxx * t[i])
         s.add(pos[1] + vel[1] * t[i] == y + vyy * t[i])
         s.add(pos[2] + vel[2] * t[i] == z + vzz * t[i])
+    s.check()
     model = s.model()
     print(sum([model[p].as_long() for p in pos]))
 
