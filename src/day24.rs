@@ -1,8 +1,6 @@
-use std::fmt::format;
 use std::fs;
 use std::ops::Add;
 use itertools::Itertools;
-use z3::{ast, Config, Context, SatResult, Solver};
 
 #[derive(Copy, Clone)]
 struct Coord {
